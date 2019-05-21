@@ -54,7 +54,7 @@ func queryGetAll(result *structs.CodeSnippetArray) (res structs.CodeSnippetArray
 	db, err := sql.Open("postgres", psqlInfo)
 
 	sqlStatement := `
-	    SELECT id, title, codelines, tag, author, content_type, created_at, updated_at
+	    SELECT id, title, codelines, tag, author, content_type, created_at
 	    FROM codesnippet;
 	`
 	codesnippetarray := structs.CodeSnippetArray{}
@@ -65,7 +65,7 @@ func queryGetAll(result *structs.CodeSnippetArray) (res structs.CodeSnippetArray
 	defer rows.Close()
 	for rows.Next() {
 		codesnippet := structs.CodeSnippet{}
-		err = rows.Scan(&codesnippet.ID, &codesnippet.Title, &codesnippet.Codelines, &codesnippet.Tag, &codesnippet.Author, &codesnippet.ContentType, &codesnippet.CreatedAt, &codesnippet.UpdatedAt)
+		err = rows.Scan(&codesnippet.ID, &codesnippet.Title, &codesnippet.Codelines, &codesnippet.Tag, &codesnippet.Author, &codesnippet.ContentType, &codesnippet.CreatedAt)
 		if err != nil {
 			panic(err)
 		}
@@ -100,7 +100,7 @@ func queryGetPerId(result *structs.CodeSnippetArray, id int) (res structs.CodeSn
 	db, err := sql.Open("postgres", psqlInfo)
 
 	sqlStatement := `
-	    SELECT id, title, codelines, tag, author, content_type, created_at, updated_at
+	    SELECT id, title, codelines, tag, author, content_type, created_at
 	    FROM codesnippet
 	    WHERE id=$1;
 	`
@@ -111,7 +111,7 @@ func queryGetPerId(result *structs.CodeSnippetArray, id int) (res structs.CodeSn
 	}
 	defer row.Close()
 	for row.Next() {
-		err = row.Scan(&codesnippet.ID, &codesnippet.Title, &codesnippet.Codelines, &codesnippet.Tag, &codesnippet.Author, &codesnippet.ContentType, &codesnippet.CreatedAt, &codesnippet.UpdatedAt)
+		err = row.Scan(&codesnippet.ID, &codesnippet.Title, &codesnippet.Codelines, &codesnippet.Tag, &codesnippet.Author, &codesnippet.ContentType, &codesnippet.CreatedAt)
 		if err != nil {
 			panic(err)
 		}
@@ -162,6 +162,76 @@ func createCodeSnippet(c echo.Context) error {
 	return c.JSON(http.StatusOK, response)
 }
 
+
+// QUERY UPDATE
+func queryUpdate(newcodesnippet *structs.CodeSnippet, id int) (codesnippet structs.CodeSnippet) {
+	psqlInfo := fmt.Sprintf("host=%s port=%d user=%s "+"password=%s dbname=%s sslmode=disable", host, port, user, password, dbname)
+	db, err := sql.Open("postgres", psqlInfo)
+
+	sqlStatement := `
+	    UPDATE codesnippet SET
+		title = $1,
+		codelines = $2,
+		tag = $3,
+		author = $4,
+		content_type = $5
+	    WHERE id = $6
+	    RETURNING id, title, codelines, tag, author, content_type
+	`
+	codesnippet = structs.CodeSnippet{}
+	err = db.QueryRow(sqlStatement, newcodesnippet.Title, newcodesnippet.Codelines, newcodesnippet.Tag, newcodesnippet.Author, newcodesnippet.ContentType, id).Scan(&codesnippet.ID, &codesnippet.Title, &codesnippet.Codelines, &codesnippet.Tag, &codesnippet.Author, &codesnippet.ContentType)
+	if err != nil {
+		panic(err)
+	}	
+	return codesnippet
+}
+
+
+// HANDLER UPDATE
+func updateCodeSnippet(c echo.Context) error {
+	id, _ := strconv.Atoi(c.Param("id"))
+	codesnippet := new(structs.CodeSnippet)
+	if err := c.Bind(codesnippet); err != nil {
+		return err
+	}
+	response := queryUpdate(codesnippet, id)
+	return c.JSON(http.StatusOK, response)
+}
+
+
+
+// QUERY DELETE
+func queryDelete(id int) error {
+	psqlInfo := fmt.Sprintf("host=%s port=%d user=%s "+"password=%s dbname=%s sslmode=disable", host, port, user, password, dbname)
+	db, err := sql.Open("postgres", psqlInfo)
+
+	sqlStatement := `
+	    DELETE FROM codesnippet
+	    WHERE id = $1
+	`
+	//codesnippet = structs.CodeSnippet{}
+	_, err = db.Exec(sqlStatement, id)
+	if err != nil {
+		panic(err)
+	}	
+	return nil
+}
+
+
+// HANDLER DELETE
+func deleteCodeSnippet(c echo.Context) error {
+	id, _ := strconv.Atoi(c.Param("id"))
+	//codesnippet := new(structs.CodeSnippet)
+	//if err := c.Bind(codesnippet); err != nil {
+	//	return err
+	//}
+	_ = queryDelete(id)
+	return c.JSON(http.StatusOK, "deleted")
+}
+
+
+
+
 func main() {
 	//dbinit()
 
@@ -172,6 +242,8 @@ func main() {
 	e.GET("/getAll", getAll)
 	e.GET("/getPerId/:id", getPerId)
 	e.POST("/createCodeSnippet", createCodeSnippet)
+	e.PUT("/updateCodeSnippet/:id", updateCodeSnippet)
+	e.DELETE("/deleteCodeSnippet/:id", deleteCodeSnippet)
 
 	e.Logger.Fatal(e.Start(":1333"))
 }
